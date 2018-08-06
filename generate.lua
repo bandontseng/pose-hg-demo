@@ -18,20 +18,22 @@ for file in lfs.dir(arg[1]) do
 
         print("Process "..file)
 
+        -- open csv file
         local bboxFh = assert(io.open(bboxFile, "r"))
         local bboxCont = assert(bboxFh:read())
+        bboxFh.close()
         local bboxParameters = {}
 
-        for numStr in string.gmatch(cont, "([^,]+)") do
+        -- string split
+        for numStr in string.gmatch(bboxCont, "([^,]+)") do
             bboxParameters[#bboxParameters + 1] = tonumber(numStr)
         end
 
+        -- load image file and related parameter
         local im = image.load(fullFilePath)
-        local center = {bboxParameters[1], bboxParameters[2]}
-        local scale = bboxParameters[0]
+        local center = {bboxParameters[2], bboxParameters[3]}
+        local scale = bboxParameters[1]
         local inp = crop(im, center, scale, 0, 256)
-
-        -- image.save(arg[1].."/"..file..".croped.JPG", inp)
 
         -- Get network output
         local out = m:forward(inp:view(1, 3, 256, 256):cuda())
@@ -43,21 +45,24 @@ for file in lfs.dir(arg[1]) do
         local preds_hm, preds_img = getPreds(hm, center, scale)
 
         preds_hm:mul(4) -- Change to input scale --> From 64x64 to 256x256
-        -- print(preds_img[1][6][1]) -- Y
-        -- print(preds_img[1][6][2]) -- X
+        -- print(preds_img[1][6][2]) -- Y
+        -- print(preds_img[1][6][1]) -- X
 
         if false then
             local dispImg = drawOutput(inp, hm, preds_hm[1])
             w = image.display{image=dispImg, win=w}
             sys.sleep(3)
         end
-        
-        for i in 1, 16 do
-            preds_hm[1][i][1] = preds_hm[1][i][1] - 1
-            preds_hm[1][i][2] = preds_hm[1][i][2] - 1
+       
+        -- write to file
+        local output_pose_file = arg[3].."/"..string.sub(file,1,-4).."csv"
+        local outputFh = assert(io.open(output_pose_file, "w"))
+
+        for i = 1, 16 do
+            outputFh:write(preds_img[1][i][1]..","..preds_img[1][i][2].."\n")
         end
 
-        print(preds_hm[1][1][1])
+        outputFh.close()
 
         collectgarbage()
     end
